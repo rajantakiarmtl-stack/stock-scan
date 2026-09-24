@@ -1,26 +1,33 @@
 """
 scan.py — daily universe scan for the mean-reversion debit-spread system.
 
-Colab:
+Runs in GitHub Actions (see .github/workflows/scan.yml) or in Colab:
     !pip install -q yfinance pyarrow curl_cffi
-    then paste this whole file into a cell and run it.
 
-Outputs, next to the script (in Colab: /content/):
-    scan_universe.csv    every name with all metrics   <-- attach this one
+Outputs:
+    scan_universe.csv    every name with all metrics
     scan_candidates.csv  only the names at a trigger
     scan_prices.parquet  price cache
 
-HOW THE CACHE WORKS (this is what broke the last two runs):
-Yahoo throttles Colab, so a run may only return part of the universe. Every
-run now checks, per ticker, whether the cache holds enough history. Names with
-enough get a cheap 1-month top-up; names without get a full multi-year pull.
-So a throttled run is not wasted — it banks whatever it got, and the next run
-picks up only the remainder. Two or three runs and you are at full coverage.
+TWO BUGS THIS FILE EXISTS TO PREVENT, both of which produced a plausible-looking
+CSV with 60 rows instead of 500 and raised no error:
 
-The old version cached the 60 names that survived the first throttle, then on
-every later run asked Yahoo for only 1 month. New names came back with 20 days
-of history, could not form a 200-day average, and were silently dropped. That
-is why you got the identical 60 tickers twice.
+1. Cache poisoning. A throttled run cached only the names that came back, and
+   every later run then asked for just 1 month, so new names had too little
+   history for a 200-day average and were dropped. Fixed by classifying per
+   ticker: names already deep in the cache get a top-up, names that are not get
+   a full multi-year pull. A throttled run banks its progress.
+
+2. Single-timestamp scoring. Metrics were read at close.index[-1]. Names fetched
+   minutes apart, or mid-session, ended one bar short of each other, and dropna
+   silently removed every name missing that final bar. Coverage reported 99% and
+   the CSV still had 60 rows. Fixed by normalising the index, dropping any date
+   where fewer than MIN_ROW_COVERAGE of names report, then forward-filling at
+   most STALE_LIMIT bars.
+
+Why either mattered rather than merely annoyed: vol_rank is a CROSS-SECTIONAL
+rank. Sixty mega-caps ranked against each other is a different and wrong answer,
+not a partial one — it produced 0 put triggers where the full universe produced 8.
 
 CORRECTNESS NOTE: auto_adjust=False and 'Close' is deliberate. That is
 split-adjusted but NOT dividend-adjusted, which is what option strikes
@@ -42,8 +49,6 @@ try:
 except ImportError:
     sys.exit("Run:  pip install yfinance pyarrow curl_cffi")
 
-# curl_cffi lets yfinance impersonate a real browser. This is the single
-# biggest factor in getting past Yahoo's throttling on Colab.
 SESSION = None
 try:
     from curl_cffi import requests as _cr
@@ -51,19 +56,20 @@ try:
     print("curl_cffi session active")
 except Exception:
     print("!! curl_cffi NOT installed — expect heavy throttling.")
-    print("!! run:  !pip install curl_cffi   then restart and try again")
 
-try:                       # works as a .py file
+try:
     HERE = Path(__file__).parent
-except NameError:          # ...and in a Colab / Jupyter cell
+except NameError:                      # Colab / Jupyter cell
     HERE = Path.cwd()
 
 YEARS = 2
 MIN_HIST = 260             # trading days a ticker needs before it can be scored
+MIN_ROW_COVERAGE = 0.60    # drop a date where fewer than this share of names report
+STALE_LIMIT = 3            # forward-fill a name at most this many bars
 CACHE = HERE / "scan_prices.parquet"
 CHUNK = 15
 PAUSE = 1.5
-PASSES = 4                 # retry sweeps over whatever is still missing
+PASSES = 4
 MIN_COVERAGE = 0.80        # refuse to write the CSV below this
 MIN_DOLLAR_VOL = 100e6
 MIN_PRICE = 50
@@ -75,6 +81,19 @@ EXTRA_TICKERS = []
 
 SP500_CSV = ("https://raw.githubusercontent.com/datasets/"
              "s-and-p-500-companies/main/data/constituents.csv")
+
+
+def norm_index(df):
+    """Tz-naive, midnight-normalised, no duplicate dates. Without this a
+    tz-aware fetch and a tz-naive cache produce two rows for the same day."""
+    if df is None or not len(df):
+        return df
+    idx = pd.to_datetime(df.index)
+    if getattr(idx, "tz", None) is not None:
+        idx = idx.tz_localize(None)
+    df = df.copy()
+    df.index = idx.normalize()
+    return df[~df.index.duplicated(keep="last")].sort_index()
 
 
 def get_universe():
@@ -103,7 +122,7 @@ def _download(batch, period):
     if SESSION is not None:
         try:
             return yf.download(batch, session=SESSION, **kw)
-        except TypeError:          # yfinance version handles curl_cffi itself
+        except TypeError:              # yfinance version handles curl_cffi itself
             SESSION = None
     return yf.download(batch, **kw)
 
@@ -112,11 +131,11 @@ def _fetch(batch, period, min_days):
     d = _download(batch, period)
     if d is None or d.empty:
         return None, None
-    if not isinstance(d.columns, pd.MultiIndex):     # single ticker comes back flat
+    if not isinstance(d.columns, pd.MultiIndex):
         d.columns = pd.MultiIndex.from_product([d.columns, batch])
     if "Close" not in d.columns.get_level_values(0):
         return None, None
-    cl, vl = d["Close"], d["Volume"]
+    cl, vl = norm_index(d["Close"]), norm_index(d["Volume"])
     keep = [c for c in cl.columns if cl[c].notna().sum() >= min_days]
     if not keep:
         return None, None
@@ -124,7 +143,6 @@ def _fetch(batch, period, min_days):
 
 
 def download(names, period, label, min_days):
-    """Sweep `names` repeatedly until they are all in, or PASSES is spent."""
     got_c, got_v = {}, {}
     todo = list(names)
     for p in range(PASSES):
@@ -167,15 +185,15 @@ def main():
     if CACHE.exists():
         try:
             cached = pd.read_parquet(CACHE)
-            old_close = cached.xs("close", axis=1, level=1)
-            old_vol = cached.xs("volume", axis=1, level=1)
+            old_close = norm_index(cached.xs("close", axis=1, level=1))
+            old_vol = norm_index(cached.xs("volume", axis=1, level=1))
             print(f"cache: {old_close.shape[1]} tickers through "
                   f"{old_close.index[-1].date()}")
         except Exception as e:
             print(f"cache unreadable ({e}) — starting fresh")
             old_close = old_vol = None
 
-    # THE FIX: decide per ticker whether the cache already has enough history.
+    # FIX 1: decide per ticker whether the cache already has enough history.
     if old_close is not None:
         deep = {t for t in old_close.columns
                 if t in tickers and old_close[t].notna().sum() >= MIN_HIST}
@@ -187,7 +205,7 @@ def main():
 
     frames = []
     if need_topup:
-        c, v = download(need_topup, "1mo", "top-up", 5)
+        c, v = download(need_topup, "3mo", "top-up", 5)
         if len(c):
             frames.append((c, v))
     if need_full:
@@ -197,7 +215,7 @@ def main():
 
     close = old_close if old_close is not None else pd.DataFrame()
     vol = old_vol if old_vol is not None else pd.DataFrame()
-    for c, v in frames:                      # new values win, union of both
+    for c, v in frames:                # new values win, union of both
         close = c.combine_first(close) if len(close) else c
         vol = v.combine_first(vol) if len(vol) else v
 
@@ -205,8 +223,8 @@ def main():
         sys.exit("nothing came back at all — Yahoo is hard-blocking. "
                  "Wait 30 minutes and run again.")
 
-    close = close.replace(0, np.nan)
-    vol = vol.reindex(columns=close.columns)
+    close = norm_index(close.replace(0, np.nan))
+    vol = norm_index(vol).reindex(index=close.index, columns=close.columns)
     cutoff = close.index[-1] - pd.Timedelta(days=int(YEARS * 372))
     close, vol = close[close.index >= cutoff], vol[vol.index >= cutoff]
 
@@ -223,19 +241,33 @@ def main():
         missing = [t for t in tickers if t not in scorable]
         sys.exit(
             f"\nSTOPPING — only {coverage:.0%} of the universe has enough history.\n"
-            f"No CSV written, because volatility rank is measured ACROSS the\n"
-            f"universe: scoring 60 mega-caps against each other gives a wrong\n"
-            f"answer, not a partial one.\n\n"
-            f"Progress IS saved. Just run this cell again — it will only fetch\n"
-            f"the {len(missing)} names still missing, so each run gets closer.\n"
-            f"Still stuck after 3 runs? Yahoo has your Colab IP throttled:\n"
-            f"  Runtime > Disconnect and delete runtime, then reconnect.\n"
-            f"missing e.g. {missing[:12]}")
+            f"No CSV written: vol_rank is measured ACROSS the universe, so a\n"
+            f"partial run gives a wrong answer, not a partial one.\n"
+            f"Progress IS saved — run again, it only fetches the {len(missing)}\n"
+            f"still missing. e.g. {missing[:12]}")
 
     close = close[[c for c in close.columns if c in scorable]]
-    vol = vol.reindex(columns=close.columns)
+    vol = vol.reindex(index=close.index, columns=close.columns)
+
+    # FIX 2: a date where only some names report (a partial bar mid-session, or
+    # batches fetched minutes apart) used to silently drop every name that was
+    # one bar short. Drop those dates, then allow a short forward-fill.
+    print("\nreporting names by date (last 6):")
+    for d in close.index[-6:]:
+        print(f"   {d.date()}  {close.loc[d].notna().sum():>4}/{close.shape[1]}")
+    thin = close.notna().sum(axis=1) < MIN_ROW_COVERAGE * close.shape[1]
+    if thin.any():
+        print(f"   dropping {int(thin.sum())} thin date(s): "
+              f"{[str(d.date()) for d in close.index[thin]][-4:]}")
+        close, vol = close[~thin], vol[~thin]
+    last_seen = close.apply(lambda s: s.last_valid_index())
+    close = close.ffill(limit=STALE_LIMIT)
+    vol = vol.ffill(limit=STALE_LIMIT)
+
     asof = close.index[-1]
-    print(f"prices through {asof.date()}\n")
+    stale = (asof - last_seen).dt.days
+    print(f"\nprices through {asof.date()}   "
+          f"{int((stale > 0).sum())} name(s) carried forward\n")
 
     spy = close["SPY"] if "SPY" in close else None
     px = close.drop(columns=["SPY"], errors="ignore")
@@ -261,6 +293,7 @@ def main():
     out = pd.DataFrame({
         "ticker": px.columns,
         "sector": [sectors.get(t, "") for t in px.columns],
+        "last_bar": [last_seen.get(t) for t in px.columns],
         "price": px.loc[last].values,
         "sma50": sma50.loc[last].values,
         "sma200": sma200.loc[last].values,
@@ -273,8 +306,13 @@ def main():
         "beta": beta.loc[last].values,
         "run_5d": (100 * run5.loc[last]).values,
         "dollar_vol_musd": (liq.loc[last] / 1e6).values,
-    }).dropna(subset=["price", "sma50", "sma200", "realized_vol"])
+    })
+    before = len(out)
+    out = out.dropna(subset=["price", "sma50", "sma200", "realized_vol"])
+    if len(out) < before:
+        print(f"note: {before - len(out)} name(s) still lack a full metric set")
 
+    out["last_bar"] = pd.to_datetime(out.last_bar).dt.date
     out["sigma_21d"] = out.realized_vol / 100 * np.sqrt(21 / 365) * out.price
     out["suggested_width"] = (1.5 * out.sigma_21d).round(1)
     out["eligible"] = ((out.dollar_vol_musd >= MIN_DOLLAR_VOL / 1e6)
@@ -289,6 +327,12 @@ def main():
     for c in out.select_dtypes("float").columns:
         out[c] = out[c].round(3)
     out = out.sort_values("pct_vs_sma50")
+
+    # final assertion: never write a universe too small to rank across
+    if len(out) < MIN_COVERAGE * len(tickers):
+        sys.exit(f"\nSTOPPING — only {len(out)} of {len(tickers)} names scored. "
+                 f"vol_rank would be measured across the wrong universe.")
+
     out.to_csv(HERE / "scan_universe.csv", index=False)
 
     cand = out[out.call_trigger | out.put_trigger].copy()
@@ -308,7 +352,7 @@ def main():
 
     print(f"\n{'='*70}\nas of {last.date()}   "
           f"eligible universe: {int(out.eligible.sum())} of {len(out)}")
-    print("="*70)
+    print("=" * 70)
     print(f"\nCALL triggers ({int(out.call_trigger.sum())}):")
     c = out[out.call_trigger]
     if len(c):
@@ -326,7 +370,11 @@ def main():
               f"   off 52w high {100*(s/spy.rolling(252).max().loc[last]-1):+.2f}%")
     print(f"\nwrote scan_universe.csv ({len(out)} rows), "
           f"scan_candidates.csv ({len(cand)} rows)")
-    print("attach scan_universe.csv to the chat.")
+    try:
+        from google.colab import files
+        files.download(str(HERE / "scan_universe.csv"))
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
