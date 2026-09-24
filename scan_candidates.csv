@@ -1,0 +1,3 @@
+ticker,sector,price,sma50,sma200,pct_vs_sma50,pct_vs_sma200,pct_off_52w_high,realized_vol,vol_rank,rsi14,beta,run_5d,dollar_vol_musd,sigma_21d,suggested_width,eligible,call_trigger,put_trigger,asof_date,next_earnings
+BAC,Financials,55.955,61.634,55.29,-9.214,1.203,-13.663,21.619,0.033,24.711,0.726,-3.824,1823.399,2.902,4.4,True,True,False,2026-09-24,2026-10-14
+AAPL,Information Technology,337.41,321.706,287.458,4.882,17.377,-0.785,28.302,0.117,63.24,0.673,0.122,13637.272,22.905,34.4,True,False,True,2026-09-24,2026-10-29
