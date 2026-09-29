@@ -24,30 +24,31 @@ jobs:
       - name: Install dependencies
         run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
 
-      # Keeps the price cache between runs so each day only tops up.
-      # If it misses, scan.py just does a full pull — nothing breaks.
-      - name: Restore price cache
-        uses: actions/cache@v4
-        with:
-          path: scan_prices.parquet
-          key: prices-${{ github.run_id }}
-          restore-keys: prices-
+      # No price cache. scan.py does a full 2-year pull every run, on purpose —
+      # the incremental cache path failed silently three separate times and each
+      # failure wrote a confident, well-formed, wrong file. A few extra minutes
+      # of download is cheaper than trading off stale data.
 
       - name: Run the scan
         run: python scan.py
 
+      # Only runs if the scan succeeded. scan.py exits non-zero on stale data,
+      # a thin final bar, or partial universe coverage — so a red run means
+      # "don't trust today's file", not "the job is broken".
       - name: Commit the results
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f scan_universe.csv scan_candidates.csv
-          # also keep a dated copy so history is inspectable
+          # dated copy, named by the DATA date so a stale file can't overwrite a
+          # good one and history stays honest
+          ASOF=$(python -c "import pandas as pd; print(pd.read_csv('scan_universe.csv')['asof_date'].iloc[0])")
           mkdir -p history
-          cp scan_universe.csv "history/$(date -u +%Y-%m-%d).csv"
+          cp scan_universe.csv "history/${ASOF}.csv"
           git add history
           if git diff --staged --quiet; then
             echo "nothing changed"
           else
-            git commit -m "scan $(date -u +%Y-%m-%d)"
+            git commit -m "scan ${ASOF}"
             git push
           fi
