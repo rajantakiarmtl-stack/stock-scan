@@ -70,6 +70,7 @@ YEARS = 2
 MIN_HIST = 260             # trading days a ticker needs before it can be scored
 MIN_COVERAGE = 0.80        # share of the universe that must have enough history
 MIN_LAST_BAR_COVERAGE = 0.80   # share that must report on the FINAL bar
+PHANTOM_BAR = 0.20         # below this share, a date is not a trading day at all
 MAX_STALE_BDAYS = 1        # how many business days behind the run date is allowed
 STALE_LIMIT = 2            # forward-fill an individual laggard at most this far
 CHUNK = 15
@@ -218,6 +219,19 @@ def main():
     print("\nreporting names by date (last 6):")
     for d in close.index[-6:]:
         print(f"   {d.date()}  {close.loc[d].notna().sum():>4}/{close.shape[1]}")
+    # A date almost nobody reports is not a trading day — it is one straggler's
+    # stray bar, and reading the last index row blindly lets it speak for the
+    # whole universe. 2026-10-01 arrived with 1 of 501 names and failed three
+    # consecutive runs on data that was complete through 2026-09-30. Drop those
+    # rows first, loudly, so the gates below judge the last REAL bar.
+    phantom = close.notna().sum(axis=1) < PHANTOM_BAR * close.shape[1]
+    if phantom.any():
+        print(f"   dropping {int(phantom.sum())} phantom date(s) "
+              f"(<{PHANTOM_BAR:.0%} of names reporting): "
+              f"{[str(d.date()) for d in close.index[phantom]]}")
+        close = close[~phantom]
+        vol = vol[~phantom]
+
     asof = close.index[-1]
     last_cov = close.loc[asof].notna().sum() / close.shape[1]
     if last_cov < MIN_LAST_BAR_COVERAGE:
