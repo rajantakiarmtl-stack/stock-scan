@@ -2,9 +2,13 @@ name: Daily scan
 
 on:
   schedule:
-    # 22:00 UTC on weekdays = 6pm ET in summer, 5pm ET in winter.
-    # Always after the 4pm close, so the last bar is complete.
-    - cron: '0 22 * * 1-5'
+    # 01:00 UTC Tue-Sat = 9pm ET Mon-Fri in summer, 8pm ET in winter.
+    # The old 22:00 UTC slot was 6pm ET — after the close, but Yahoo rebuilds
+    # the consolidated daily bar for a while afterwards and at 6pm it is often
+    # still missing for most of the universe. That is what killed run #11 on a
+    # day whose data was fine three hours later. Going later costs nothing: the
+    # file is read the next morning either way.
+    - cron: '0 1 * * 2-6'
   workflow_dispatch:        # lets you run it by hand from the Actions tab
 
 permissions:
@@ -13,7 +17,9 @@ permissions:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Raised from 30. The universe went from ~500 names to ~1,500, so the full
+    # two-year pull is roughly three times as many chunks.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
