@@ -1,0 +1,54 @@
+name: Rebuild universe
+
+# Screens every active US common stock for liquidity and writes universe.txt,
+# which the nightly scan then uses. Deliberately NOT part of the nightly job:
+# the set of names trading $100M+/day changes slowly, and sweeping ~8,600
+# symbols every night would add 10+ minutes for almost no new information.
+on:
+  schedule:
+    # 03:00 UTC on the 1st of each month = 11pm ET on the last day of the
+    # previous month. Well clear of the nightly scan's 01:00 UTC slot so the
+    # two never contend for Yahoo at the same time.
+    - cron: '0 3 1 * *'
+  workflow_dispatch:        # run it by hand after a big market move or an IPO
+
+permissions:
+  contents: write
+
+jobs:
+  universe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60     # ~8,600 symbols x 1 year, chunked and paused
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy curl_cffi
+
+      - name: Build the universe
+        env:
+          # Widens the candidate list from the S&P 500 to every active US
+          # common stock. Without this secret the script still runs, on the
+          # S&P 500 alone, and prints a loud warning.
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+        run: python build_universe.py
+
+      # Only runs if the build succeeded. build_universe.py exits non-zero when
+      # the screen comes back implausibly thin, so a red run means "keep using
+      # the existing universe.txt", not "the universe is now empty".
+      - name: Commit universe.txt
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f universe.txt
+          if git diff --staged --quiet; then
+            echo "universe unchanged"
+          else
+            N=$(grep -c . universe.txt)
+            git commit -m "universe rebuild: ${N} names"
+            git push
+          fi
