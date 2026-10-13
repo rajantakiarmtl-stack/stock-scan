@@ -288,10 +288,17 @@ def prescreen(syms, protect):
             headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
         with urllib.request.urlopen(req, timeout=90) as r:
             payload = json.loads(r.read().decode("utf-8", "replace"))
-        table = (payload.get("data") or {}).get("table") or {}
-        rows = table.get("rows") or []
+        # Two response shapes. With download=true the rows sit directly under
+        # "data"; the paged/table variant wraps them in "data"."table". Run #2
+        # on 2026-10-12 read only the wrapped shape, got 0 rows, and skipped
+        # the trim — which is why that run swept all 7,861 symbols.
+        data = payload.get("data") or {}
+        rows = data.get("rows") or ((data.get("table") or {}).get("rows")) or []
         if len(rows) < 2000:
+            keys = list(data.keys())[:8]
             print(f"!! screener returned only {len(rows)} rows — not trimming")
+            print(f"!! (data keys seen: {keys}) — if this persists the sweep")
+            print(f"!! still works, it is just slower.")
             return syms
 
         def num(s):
@@ -364,11 +371,40 @@ def main():
             f"the market. Wait a while and re-run; the existing universe.txt is\n"
             f"better than a biased one.")
 
-    dv = (close * vol).rolling(60).median().iloc[-1]
-    px = close.ffill(limit=3).iloc[-1]
+    # PER-SYMBOL, over each name's OWN last 60 valid bars. Not
+    # `(close * vol).rolling(60).median().iloc[-1]`, which is what the
+    # 2026-10-12 run #2 used and which threw away 4,005 of 5,658 symbols
+    # silently: 5,658 came back with history and only 1,653 had a computable
+    # dollar volume, leaving 335 names and tripping the floor.
+    #
+    # The cause is the same defect this project already fixed once in scan.py
+    # and wrote down — reading metrics at a single shared timestamp. Assembling
+    # 5,658 Series into one DataFrame aligns them on the UNION of their date
+    # indexes. That union is wider than any single symbol's own history (this
+    # sweep ran ~50 minutes across different exchanges and halt schedules), so
+    # every row where a symbol has no bar is NaN; `rolling(60)` with pandas'
+    # default min_periods needs 60 non-NaN values in the window and returns NaN
+    # if even one is missing; and `.iloc[-1]` then reads whichever date happened
+    # to land last in the union. Nothing errors. The file just comes out thin.
+    #
+    # Working per column sidesteps the union index entirely: each name is
+    # judged on its own most recent 60 observations, which is what the screen
+    # was always meant to mean.
+    dvol = close * vol
+    dv = dvol.apply(lambda s: s.dropna().tail(60).median())
+    px = close.apply(lambda s: s.dropna().iloc[-1] if s.notna().any() else np.nan)
+    bars = close.notna().sum()
 
-    tab = pd.DataFrame({"price": px, "dollar_vol": dv}).dropna()
+    tab = pd.DataFrame({"price": px, "dollar_vol": dv, "bars": bars}).dropna()
     print(f"with a computable 60-day dollar volume: {len(tab):,}")
+    # Loud, because a big gap here is the signature of the bug above coming
+    # back rather than a genuinely selective screen.
+    lost = close.shape[1] - len(tab)
+    if lost > 0.1 * close.shape[1]:
+        print(f"!! {lost:,} of {close.shape[1]:,} symbols ({lost/close.shape[1]:.0%}) "
+              f"have history but no computable dollar volume. Over ~10% is")
+        print(f"!! suspicious: check that the per-symbol computation above is")
+        print(f"!! still per-symbol and has not been rewritten to use .iloc[-1].")
 
     keep = tab[(tab.price >= MIN_PRICE) & (tab.dollar_vol >= MIN_DOLLAR_VOL)]
     print(f"price >= ${MIN_PRICE} and >= ${MIN_DOLLAR_VOL/1e6:.0f}M/day: {len(keep):,}")
