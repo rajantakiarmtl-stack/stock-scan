@@ -1,0 +1,43 @@
+name: Research - downtrend persistence
+
+# Manual only. This is a one-off study, not part of the nightly scan.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60        # 829 names x 6 years is ~3x the nightly pull
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
+
+      # tee so the report survives as a file we can read without the Actions
+      # log UI. set -o pipefail so a script failure still fails the step.
+      - name: Run the study
+        run: |
+          set -o pipefail
+          python research_trend.py 2>&1 | tee research_trend_report.txt
+
+      - name: Commit the report
+        if: always()           # a failed run's log is the diagnostic
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f research_trend_report.txt || true
+          git add -f research_trend_trades.csv || true
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "research: downtrend persistence"
+            git push
+          fi
