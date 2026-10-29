@@ -1,0 +1,43 @@
+name: Research - price floor
+
+# Manual only. Separate from research.yml so each study can be run on its own —
+# both pull the same 6 years for 829 names, and running them together would
+# download it twice.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pricefloor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
+
+      - name: Run the study
+        run: |
+          set -o pipefail
+          python price_floor_test.py 2>&1 | tee price_floor_report.txt
+
+      - name: Commit the report
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f price_floor_report.txt || true
+          git add -f price_floor_trades.csv || true
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "research: price floor"
+            git push
+          fi
