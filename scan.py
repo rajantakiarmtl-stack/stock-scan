@@ -32,10 +32,11 @@ WHY IT MATTERED: the volatility filter used to be vol_rank, a CROSS-SECTIONAL
 rank. A screen that ranks names against each other does not degrade gracefully
 when the universe shrinks or goes stale — it returns a different and wrong
 answer, not a partial one. The 60-name universe produced 0 put triggers where
-the full 500 produced 8. That filter is now an ABSOLUTE volatility ceiling
-(MAX_RVOL) for exactly this reason; vol_rank is still reported but no longer
-gates anything. The coverage gates below stay, because the moving averages still
-need complete history.
+the full 500 produced 8. That was briefly fixed by swapping in an absolute
+ceiling, and REVERTED on 2026-10-29: the rank is what the research validated
+(+0.885 sigma holdout vs +0.308), and a stale universe is the coverage gates'
+job to catch, not the volatility filter's. The coverage gates below stay,
+because the moving averages still need complete history.
 
 UNIVERSE, 2026-10-12. The scan reads universe.txt, built by build_universe.py
 from dollar-volume rankings across every active US common stock — not from index
@@ -90,17 +91,25 @@ PAUSE = 1.5
 PASSES = 4
 MIN_DOLLAR_VOL = 100e6
 MIN_PRICE = 50
-# Volatility ceiling, ABSOLUTE rather than a cross-sectional percentile.
-# The validated filter was vol_rank <= 0.33. On 2026-10-12 that percentile
-# corresponded to realized vol <= 24.9% in the then-universe, so 25% reproduces
-# the same set. The absolute form is used because a percentile silently changes
-# meaning when the universe changes size or composition — widening the universe
-# from 500 to ~1,500 names would have quietly tightened a rank-based filter
-# while appearing untouched. It also tracks the finding better: the measured
-# edge lives in low ABSOLUTE volatility (+20 points of edge in the calmest
-# bucket, -5 in the jumpiest), so in a high-volatility regime fewer names
-# SHOULD qualify, which a rank would hide by always passing its calmest third.
-MAX_RVOL = 25.0            # percent, annualised
+# Volatility filter: CROSS-SECTIONAL RANK. Reverted 2026-10-29 from the
+# absolute 25% ceiling that replaced it on 2026-10-12.
+#
+# The 10-12 reasoning was that a percentile silently changes meaning when the
+# universe changes, which is true, and that the edge lives in low ABSOLUTE
+# volatility, which is NOT what the data says. Measured head to head on the
+# same panel: rank <= 0.33 gives +0.885 sigma holdout at t = 5.00; the 25%
+# absolute ceiling gives +0.308 sigma at t = 2.31. The edge is REGIME-RELATIVE
+# — "calm" means calm against today's market, not against a fixed number.
+#
+# The silent-failure worry the ceiling was meant to fix is real but belongs to
+# a different layer: it is the coverage gates below that must catch a shrunken
+# universe, not the volatility filter. A rank computed over a universe that
+# failed its coverage check is wrong either way.
+#
+# 2026-10-29 note: with the current universe the two happen to agree (the 33rd
+# percentile sits at rv60 26.2%), so this change moves nothing today. It
+# matters in the next regime, which is the point.
+MAX_VOL_RANK = 0.33        # cross-sectional percentile of 60-day realized vol
 MIN_RVOL = 0.10            # data-quality floor: below this the series is broken
 CALL_TRIGGER = -0.07       # 7% below the 50-day mean
 PUT_TRIGGER = 0.15         # 15% above the 200-day mean
@@ -534,13 +543,13 @@ def main():
     out["last_bar"] = pd.to_datetime(out.last_bar).dt.date
     out["sigma_21d"] = out.realized_vol / 100 * np.sqrt(21 / 365) * out.price
     out["suggested_width"] = (1.5 * out.sigma_21d).round(1)
-    # vol_rank is still reported, but eligibility now uses the ABSOLUTE ceiling.
-    # See the MAX_RVOL comment: a percentile moves under you when the universe
-    # changes, an absolute level does not.
+    # Eligibility uses the VALIDATED cross-sectional rank. See the
+    # MAX_VOL_RANK comment: rank measured +0.885 sigma holdout (t 5.00) against
+    # +0.308 (t 2.31) for the absolute ceiling it briefly replaced.
     out["eligible"] = ((out.dollar_vol_musd >= MIN_DOLLAR_VOL / 1e6)
                        & (out.price >= MIN_PRICE)
                        & (out.realized_vol >= 100 * MIN_RVOL)
-                       & (out.realized_vol <= MAX_RVOL))
+                       & (out.vol_rank <= MAX_VOL_RANK))
     out["call_trigger"] = (out.eligible & (out.price > out.sma200)
                            & (out.pct_vs_sma50 <= CALL_TRIGGER * 100))
     out["put_trigger"] = out.eligible & (out.pct_vs_sma200 >= PUT_TRIGGER * 100)
