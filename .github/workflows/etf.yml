@@ -1,0 +1,42 @@
+name: Research - ETFs
+
+# Manual only. Pulls the stock universe TOO, because vol_rank is
+# cross-sectional and must be computed over the combined population.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  etf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
+
+      - name: Run the study
+        run: |
+          set -o pipefail
+          python etf_test.py 2>&1 | tee etf_report.txt
+
+      - name: Commit the report
+        if: always()
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f etf_report.txt || true
+          git add -f etf_trades.csv || true
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "research: ETFs"
+            git push
+          fi
