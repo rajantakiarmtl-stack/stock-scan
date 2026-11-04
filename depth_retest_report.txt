@@ -1,0 +1,88 @@
+curl_cffi session active
+universe: 843 names, pulling 6y
+
+  pass 1: 15/843 asked, 15/843 in  pass 1: 30/843 asked, 30/843 in  pass 1: 45/843 asked, 45/843 in  pass 1: 60/843 asked, 60/843 in  pass 1: 75/843 asked, 75/843 in  pass 1: 90/843 asked, 90/843 in  pass 1: 105/843 asked, 105/843 in  pass 1: 120/843 asked, 120/843 in  pass 1: 135/843 asked, 135/843 in  pass 1: 150/843 asked, 150/843 in  pass 1: 165/843 asked, 165/843 in  pass 1: 180/843 asked, 180/843 in  pass 1: 195/843 asked, 195/843 in  pass 1: 210/843 asked, 210/843 in  pass 1: 225/843 asked, 225/843 in  pass 1: 240/843 asked, 240/843 in  pass 1: 255/843 asked, 255/843 in  pass 1: 270/843 asked, 270/843 in  pass 1: 285/843 asked, 285/843 in  pass 1: 300/843 asked, 300/843 in  pass 1: 315/843 asked, 315/843 in  pass 1: 330/843 asked, 330/843 in  pass 1: 345/843 asked, 345/843 in  pass 1: 360/843 asked, 360/843 in  pass 1: 375/843 asked, 375/843 in  pass 1: 390/843 asked, 389/843 in  pass 1: 405/843 asked, 404/843 in  pass 1: 420/843 asked, 419/843 in  pass 1: 435/843 asked, 434/843 in  pass 1: 450/843 asked, 449/843 in  pass 1: 465/843 asked, 464/843 in  pass 1: 480/843 asked, 479/843 in  pass 1: 495/843 asked, 494/843 in  pass 1: 510/843 asked, 509/843 in  pass 1: 525/843 asked, 524/843 in  pass 1: 540/843 asked, 539/843 in  pass 1: 555/843 asked, 554/843 in  pass 1: 570/843 asked, 569/843 in  pass 1: 585/843 asked, 584/843 in  pass 1: 600/843 asked, 599/843 in  pass 1: 615/843 asked, 613/843 in  pass 1: 630/843 asked, 628/843 in  pass 1: 645/843 asked, 643/843 in  pass 1: 660/843 asked, 658/843 in  pass 1: 675/843 asked, 673/843 in  pass 1: 690/843 asked, 687/843 in  pass 1: 705/843 asked, 702/843 in  pass 1: 720/843 asked, 717/843 in  pass 1: 735/843 asked, 732/843 in  pass 1: 750/843 asked, 747/843 in  pass 1: 765/843 asked, 762/843 in  pass 1: 780/843 asked, 777/843 in  pass 1: 795/843 asked, 792/843 in  pass 1: 810/843 asked, 807/843 in  pass 1: 825/843 asked, 822/843 in  pass 1: 840/843 asked, 837/843 in  pass 1: 843/843 asked, 840/843 in
+  3 missing - waiting 20s before pass 2
+  pass 2: 3/3 asked, 840/843 in
+  3 missing - waiting 40s before pass 3
+  pass 3: 3/3 asked, 840/843 in
+  3 missing - waiting 60s before pass 4
+  pass 4: 3/3 asked, 840/843 in
+
+got 840 tickers, 1507 bars, 2020-11-04 .. 2026-11-04
+
+building first-touch signals ...
+
+==============================================================================
+H3  THE DEPTH LADDER, HELD TO EXPIRY  (was measured at a 90%-of-max exit)
+==============================================================================
+  model-free z first, then the modelled structure in dollars.
+
+  trigger        n  sig/yr       z   t(z)   $/trade   t($)    ROR  win%    FIT $    OOS $  capacity $/yr
+  5%           902     154  +0.211  +4.03      +205  +2.94   +34%   44%     +266     +123        +31,630
+  6%           592     101  +0.171  +2.93      +161  +2.26   +34%   44%     +178     +139        +16,346
+  7%           357      61  +0.237  +3.28      +198  +1.84   +42%   44%     +210     +184        +12,101
+  8%           196      34  +0.325  +3.23      +145  +0.91   +51%   45%     +180     +104         +4,868
+
+  capacity $/yr = signals/yr x $/trade. It is a CAPACITY ceiling,
+  not a forecast: taking every signal at 5% means ~36 concurrent
+  positions, which breaks the 2-name sector cap long before cash.
+
+  monotonic in FIT?     False   ['+266', '+178', '+210', '+180']
+  monotonic in HOLDOUT? False   ['+123', '+139', '+184', '+104']
+
+==============================================================================
+H1  PAIRED: on declines reaching BOTH -5% and -7%,
+    does waiting for -7% beat entering at -5%?
+==============================================================================
+    Same episode, same name, so this isolates the ENTRY-PRICE cost of
+    moving early from the population difference. Far more powerful
+    than comparing the two trigger populations against each other.
+
+    257 usable paired episodes (of 902 shallow, 357 deep; 100 dropped as same-day)
+    same-day pairs are the identical trade -- they would
+    bias the difference toward zero, so they are excluded.
+    mean entry depth: shallow -5.76%  deep -7.76%
+    mean wait: 7.7 calendar days
+
+    FIT       deep minus shallow   $     +210 (t +3.75)   z +0.388 (t +7.45)   n  142 dates   92
+    HOLDOUT   deep minus shallow   $     +284 (t +3.78)   z +0.444 (t +7.05)   n  115 dates   79
+    ALL       deep minus shallow   $     +243 (t +5.29)   z +0.413 (t +10.19)   n  257 dates  171
+
+    sign agreement: FIT +210 / HOLDOUT +284  -> SAME SIGN
+
+==============================================================================
+H2  Do declines that STOP SHORT of -7% pay on their own?
+==============================================================================
+    These are the trades a shallower trigger actually ADDS. The old
+    study never isolated them -- it folded them in with the earlier
+    entries on declines that went on to reach -7%.
+
+    stopped short
+      FIT       n   319  dates  200  mean   +386.30  SE   98.40  t  +3.93   z +0.377 (t +4.71)  win 51%
+      HOLDOUT   n   226  dates  148  mean   +236.10  SE  157.85  t  +1.50   z +0.407 (t +5.32)  win 50%
+      ALL       n   545  dates  348  mean   +324.01  SE   87.64  t  +3.70   z +0.389 (t +6.90)  win 51%
+      sign agreement: FIT +386 / HOLDOUT +236  -> SAME SIGN
+
+    went on to -7%
+      FIT       n   195  dates  115  mean    +70.05  SE  152.48  t  +0.46   z +0.002 (t +0.02)  win 33%
+      HOLDOUT   n   162  dates  107  mean    -34.13  SE  136.78  t  -0.25   z -0.136 (t -1.22)  win 32%
+      ALL       n   357  dates  222  mean    +22.77  SE  103.59  t  +0.22   z -0.061 (t -0.86)  win 33%
+      sign agreement: FIT +70 / HOLDOUT -34  -> *** DISAGREE ***
+
+==============================================================================
+DECISION, against the rule written down before the run
+==============================================================================
+  H2 added trades positive in BOTH windows?  True   (FIT +386, OOS +236)
+  H1 paired cost of entering early:          $+243/trade (t +5.29)
+  net $/yr of moving 7% -> 5%:               +19,529
+     = 93 added trades/yr x $+324 (all-window)  minus  44 earlier entries/yr x $243
+  NOTE this nets DOLLARS PER YEAR at one contract each. It is a
+       capacity figure: realising it needs every signal taken.
+
+  Adopt 5% ONLY if H2 is positive in both windows AND the net is
+  clearly positive AND no sign flip appeared above. A holdout-only
+  result is noise here -- that has been wrong 5 times in this project.
+
+wrote depth_retest_trades.csv (2047 rows)
+wrote depth_retest_paired.csv (257 rows)
