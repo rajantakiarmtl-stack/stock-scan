@@ -1,0 +1,51 @@
+name: Research - entry depth re-test
+
+# Manual only. Re-ranks entry depth under the CURRENT exit rule (hold to
+# expiry), which replaced the 90%-of-max exit the original depth study used,
+# and runs the paired 5%-vs-7% test that has never been done.
+#
+# Separate workflow from research.yml / price_floor.yml / etf.yml for the same
+# reason those are separate from each other: each pulls 6 years for ~825 names
+# and running two in one job downloads it twice.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  depth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
+
+      # tee so the report survives as a committed file rather than only in the
+      # Actions log UI. set -o pipefail so a script failure still fails the step
+      # instead of being swallowed by tee's exit code.
+      - name: Run the study
+        run: |
+          set -o pipefail
+          python depth_retest.py 2>&1 | tee depth_retest_report.txt
+
+      - name: Commit the report
+        if: always()           # a failed run's log is the diagnostic
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f depth_retest_report.txt || true
+          git add -f depth_retest_trades.csv || true
+          git add -f depth_retest_paired.csv || true
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "research: entry depth re-test under hold-to-expiry"
+            git push
+          fi
