@@ -1,0 +1,118 @@
+curl_cffi session active
+universe: 843 names (SPY included), pulling 6y
+
+  pass 1: 15/843 asked, 15/843 in  pass 1: 30/843 asked, 30/843 in  pass 1: 45/843 asked, 45/843 in  pass 1: 60/843 asked, 60/843 in  pass 1: 75/843 asked, 75/843 in  pass 1: 90/843 asked, 90/843 in  pass 1: 105/843 asked, 105/843 in  pass 1: 120/843 asked, 120/843 in  pass 1: 135/843 asked, 135/843 in  pass 1: 150/843 asked, 150/843 in  pass 1: 165/843 asked, 165/843 in  pass 1: 180/843 asked, 180/843 in  pass 1: 195/843 asked, 195/843 in  pass 1: 210/843 asked, 210/843 in  pass 1: 225/843 asked, 225/843 in  pass 1: 240/843 asked, 240/843 in  pass 1: 255/843 asked, 255/843 in  pass 1: 270/843 asked, 270/843 in  pass 1: 285/843 asked, 285/843 in  pass 1: 300/843 asked, 300/843 in  pass 1: 315/843 asked, 315/843 in  pass 1: 330/843 asked, 330/843 in  pass 1: 345/843 asked, 345/843 in  pass 1: 360/843 asked, 360/843 in  pass 1: 375/843 asked, 375/843 in  pass 1: 390/843 asked, 389/843 in  pass 1: 405/843 asked, 404/843 in  pass 1: 420/843 asked, 419/843 in  pass 1: 435/843 asked, 434/843 in  pass 1: 450/843 asked, 449/843 in  pass 1: 465/843 asked, 464/843 in  pass 1: 480/843 asked, 479/843 in  pass 1: 495/843 asked, 494/843 in  pass 1: 510/843 asked, 509/843 in  pass 1: 525/843 asked, 524/843 in  pass 1: 540/843 asked, 539/843 in  pass 1: 555/843 asked, 554/843 in  pass 1: 570/843 asked, 569/843 in  pass 1: 585/843 asked, 584/843 in  pass 1: 600/843 asked, 599/843 in  pass 1: 615/843 asked, 613/843 in  pass 1: 630/843 asked, 628/843 in  pass 1: 645/843 asked, 642/843 in  pass 1: 660/843 asked, 657/843 in  pass 1: 675/843 asked, 672/843 in  pass 1: 690/843 asked, 686/843 in  pass 1: 705/843 asked, 701/843 in  pass 1: 720/843 asked, 716/843 in  pass 1: 735/843 asked, 731/843 in  pass 1: 750/843 asked, 746/843 in  pass 1: 765/843 asked, 761/843 in  pass 1: 780/843 asked, 776/843 in  pass 1: 795/843 asked, 791/843 in  pass 1: 810/843 asked, 806/843 in  pass 1: 825/843 asked, 821/843 in  pass 1: 840/843 asked, 836/843 in  pass 1: 843/843 asked, 839/843 in
+  4 missing - waiting 20s before pass 2
+  pass 2: 4/4 asked, 839/843 in
+  4 missing - waiting 40s before pass 3
+  pass 3: 4/4 asked, 839/843 in
+  4 missing - waiting 60s before pass 4
+  pass 4: 4/4 asked, 839/843 in
+
+got 839 tickers, 1507 bars, 2020-11-12 .. 2026-11-12
+computing rolling beta and idiosyncratic vol ...
+
+trades 282   FIT 117   HOLDOUT 165   dates 204   tickers 207   48/yr
+
+==============================================================================
+HOW MUCH OF A TYPICAL SIGNAL'S DECLINE IS THE MARKET?
+==============================================================================
+  over the 21 sessions into the signal:
+    stock move            median -9.31%
+    SPY move              median -0.99%
+    beta                  median +0.747
+    beta-explained part   median -0.52%
+    residual (stock-specific) median -8.05%
+    residual in sigma     median -1.26
+
+    market share of the decline, median +6.3%  (n=282, only where the stock fell >1%)
+    A ratio is unstable near a zero denominator, so the sorts below
+    all use the normalised residual, never this share.
+
+==============================================================================
+THE CONFOUND CHECK — is resid just market state relabelled?
+==============================================================================
+  corr(resid_z, SPY off its high) = -0.527
+  corr(resid_z, depth below 50d)  = -0.029
+  corr(resid_z, beta)             = +0.184
+
+  resid is mechanically tied to the market's own move: when the
+  market falls hard, a stock that merely tracks it has resid ~ 0,
+  and 'market fell hard' is itself a measured POSITIVE. If |corr|
+  with SPY-off-high is large, the single sort below is partly a
+  market-state sort and only the double sort is interpretable.
+
+==============================================================================
+H1 vs H2 — forward outcome by how stock-specific the decline was
+==============================================================================
+  fit-window tercile cuts: -1.425 / -0.915 (sigma units)
+  'idiosyncratic' = most negative resid (fell well beyond beta)
+  'market-driven' = resid nearest zero or positive
+
+  -- FIT
+     idiosyncratic    n   39 dates   33  z +0.120 (SE 0.151, t +0.80)   $    +348 (t +0.80)  win 41%
+     middle           n   39 dates   31  z +0.394 (SE 0.158, t +2.50)   $     -89 (t -0.17)  win 49%
+     market-driven    n   39 dates   27  z +0.225 (SE 0.208, t +1.08)   $    +243 (t +1.15)  win 33%
+
+  -- HOLDOUT
+     idiosyncratic    n   61 dates   55  z +0.193 (SE 0.121, t +1.59)   $     +61 (t +0.54)  win 44%
+     middle           n   64 dates   59  z -0.104 (SE 0.136, t -0.76)   $    -182 (t -1.28)  win 33%
+     market-driven    n   40 dates   34  z +0.684 (SE 0.224, t +3.06)   $    +984 (t +2.75)  win 62%
+
+  CONTRAST  idiosyncratic minus market-driven, cluster-robust:
+    FIT       z -0.105 (SE 0.256, t -0.41)    $    +105 (SE   486, t +0.22)
+    HOLDOUT   z -0.492 (SE 0.241, t -2.04)    $    -923 (SE   373, t -2.47)
+    ALL       z -0.293 (SE 0.178, t -1.65)    $    -445 (SE   293, t -1.52)
+
+    sign agreement on z: FIT -0.105 / HOLDOUT -0.492  -> SAME SIGN
+
+==============================================================================
+THE DOUBLE SORT — resid tercile WITHIN market state
+==============================================================================
+  market state split at SPY -4% off its 52-week high,
+  the spec's own boundary (within 4%: 53% win; 4-8% off: 66%).
+  If the contrast survives inside BOTH buckets it is real. If it
+  only exists across them, it was the market-state confound.
+
+  market calm  (n=159, SPY off-high -3.8% .. +0.0%)
+     idiosyncratic    n   77 dates   70  z +0.113 (t +1.07)   $    +156 (t +0.67)
+     middle           n   64 dates   56  z -0.059 (t -0.50)   $    -456 (t -1.39)
+     market-driven    n   18 dates   18  z +0.158 (t +0.51)   $     +56 (t +0.28)
+     contrast          z -0.046 (t -0.14)   $    +100 (t +0.33)
+
+  market stressed  (n=123, SPY off-high -25.4% .. -4.1%)
+     idiosyncratic    n   23 dates   18  z +0.338 (t +1.58)   $    +231 (t +1.18)
+     middle           n   39 dates   34  z +0.322 (t +1.65)   $    +361 (t +1.98)
+     market-driven    n   61 dates   43  z +0.546 (t +3.04)   $    +784 (t +2.79)
+     contrast          z -0.208 (t -0.82)   $    -553 (t -1.64)
+
+==============================================================================
+FOR SCALE — the market-state effect on its own
+==============================================================================
+  This is the already-measured variable. If it dominates resid,
+  the honest conclusion is that market state is the real signal.
+
+  FIT       market calm      n   50 dates   38  z +0.205 (t +1.51)   $     +36 (t +0.07)  win 44%
+  FIT       market stressed  n   67 dates   43  z +0.278 (t +1.92)   $    +266 (t +1.83)  win 39%
+  HOLDOUT   market calm      n  109 dates   92  z -0.023 (t -0.23)   $    -165 (t -1.79)  win 33%
+  HOLDOUT   market stressed  n   56 dates   31  z +0.626 (t +3.05)   $    +883 (t +3.07)  win 66%
+
+  stressed minus calm:  z +0.388 (t +2.56)   $ +649 (t +2.68)
+
+==============================================================================
+VERDICT, against the rule written down before the run
+==============================================================================
+  same sign in both windows?        True   (FIT -0.105, HOLDOUT -0.492)
+  |t| > 2.5 in the holdout?         False  (t -2.04)
+  survives the double sort?         2 of 2 market-state buckets agree in sign
+      market calm      z -0.046 (t -0.14)
+      market stressed  z -0.208 (t -0.82)
+
+  direction: market-driven dips do as well or BETTER (H2)
+
+  -> NOT A FINDING. Leave the filters alone. Beta stays a
+     reported column, not a gate.
+
+  Recorded prediction was H2. Score it honestly either way.
+
+wrote beta_decomp_trades.csv (282 rows)
