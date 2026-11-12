@@ -1,0 +1,53 @@
+name: Research - market vs idiosyncratic dip
+
+# Manual only. Splits each call signal's decline into the part beta explains and
+# the part it does not, and asks whether the forward move differs.
+#
+# Two competing hypotheses are pre-registered in the script docstring, along with
+# which one I expect (H2 — market state is the real variable and the residual
+# adds nothing). The market-state confound check is the part that decides it.
+#
+# Separate workflow from the other research jobs for the same reason they are
+# separate from each other: each pulls 6 years for ~840 names and running two in
+# one job downloads it twice.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
+
+      # tee so the report survives as a committed file rather than only in the
+      # Actions log UI. set -o pipefail so a script failure still fails the step
+      # instead of being swallowed by tee's exit code.
+      - name: Run the study
+        run: |
+          set -o pipefail
+          python beta_decomp.py 2>&1 | tee beta_decomp_report.txt
+
+      - name: Commit the report
+        if: always()           # a failed run's log is the diagnostic
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f beta_decomp_report.txt || true
+          git add -f beta_decomp_trades.csv || true
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "research: market-driven vs idiosyncratic dips"
+            git push
+          fi
