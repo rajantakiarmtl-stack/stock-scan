@@ -9,7 +9,7 @@ universe: 843 names, pulling 6y
   3 missing - waiting 60s before pass 4
   pass 4: 3/3 asked, 840/843 in
 
-got 840 tickers, 1507 bars, 2020-11-04 .. 2026-11-04
+got 840 tickers, 1506 bars, 2020-11-13 .. 2026-11-12
 
 building first-touch signals ...
 
@@ -19,17 +19,17 @@ H3  THE DEPTH LADDER, HELD TO EXPIRY  (was measured at a 90%-of-max exit)
   model-free z first, then the modelled structure in dollars.
 
   trigger        n  sig/yr       z   t(z)   $/trade   t($)    ROR  win%    FIT $    OOS $  capacity $/yr
-  5%           902     154  +0.211  +4.03      +205  +2.94   +34%   44%     +266     +123        +31,630
-  6%           592     101  +0.171  +2.93      +161  +2.26   +34%   44%     +178     +139        +16,346
-  7%           357      61  +0.237  +3.28      +198  +1.84   +42%   44%     +210     +184        +12,101
-  8%           196      34  +0.325  +3.23      +145  +0.91   +51%   45%     +180     +104         +4,868
+  5%           909     155  +0.223  +4.27      +216  +3.11   +36%   44%     +266     +150        +33,485
+  6%           598     102  +0.184  +3.17      +178  +2.50   +37%   44%     +178     +178        +18,182
+  7%           359      61  +0.241  +3.36      +201  +1.87   +43%   44%     +210     +190        +12,288
+  8%           198      34  +0.320  +3.21      +144  +0.91   +50%   45%     +180     +102         +4,849
 
   capacity $/yr = signals/yr x $/trade. It is a CAPACITY ceiling,
   not a forecast: taking every signal at 5% means ~36 concurrent
   positions, which breaks the 2-name sector cap long before cash.
 
   monotonic in FIT?     False   ['+266', '+178', '+210', '+180']
-  monotonic in HOLDOUT? False   ['+123', '+139', '+184', '+104']
+  monotonic in HOLDOUT? False   ['+150', '+178', '+190', '+102']
 
 ==============================================================================
 H1  PAIRED: on declines reaching BOTH -5% and -7%,
@@ -39,17 +39,29 @@ H1  PAIRED: on declines reaching BOTH -5% and -7%,
     moving early from the population difference. Far more powerful
     than comparing the two trigger populations against each other.
 
-    257 usable paired episodes (of 902 shallow, 357 deep; 100 dropped as same-day)
+    259 usable paired episodes (of 909 shallow, 359 deep; 100 dropped as same-day)
     same-day pairs are the identical trade -- they would
     bias the difference toward zero, so they are excluded.
     mean entry depth: shallow -5.76%  deep -7.76%
-    mean wait: 7.7 calendar days
+    mean wait: 7.8 calendar days
 
     FIT       deep minus shallow   $     +210 (t +3.75)   z +0.388 (t +7.45)   n  142 dates   92
-    HOLDOUT   deep minus shallow   $     +284 (t +3.78)   z +0.444 (t +7.05)   n  115 dates   79
-    ALL       deep minus shallow   $     +243 (t +5.29)   z +0.413 (t +10.19)   n  257 dates  171
+    HOLDOUT   deep minus shallow   $     +290 (t +3.92)   z +0.448 (t +7.24)   n  117 dates   80
+    ALL       deep minus shallow   $     +246 (t +5.38)   z +0.415 (t +10.31)   n  259 dates  172
 
-    sign agreement: FIT +210 / HOLDOUT +284  -> SAME SIGN
+    sign agreement: FIT +210 / HOLDOUT +290  -> SAME SIGN
+
+    THE TWO ESTIMATES, because they answer different questions:
+      all episodes reaching both  n  359  $     +178 (t +5.19)   z +0.299 (t +9.39)
+        same-day pairs in as true zeros -- BROADER estimate
+      excluding same-day pairs    n  259  $     +246 (t +5.38)   z +0.415 (t +10.31)
+        conditional on waiting actually meaning waiting
+      -> quoting only the conditional figure overstates the effect by 28%
+
+    NOTE this measures the DECISION (enter now vs wait), not the
+    entry-price cost in isolation: the two legs have different exit
+    dates and so different market windows. Calling it an isolation
+    of entry price was wrong. External audit 2026-11-12.
 
 ==============================================================================
 H2  Do declines that STOP SHORT of -7% pay on their own?
@@ -58,25 +70,26 @@ H2  Do declines that STOP SHORT of -7% pay on their own?
     study never isolated them -- it folded them in with the earlier
     entries on declines that went on to reach -7%.
 
+    deep-reach from the price path: 363 episodes; from priced trades only: 359. The gap is what the old classification mislabelled.
     stopped short
       FIT       n   319  dates  200  mean   +386.30  SE   98.40  t  +3.93   z +0.377 (t +4.71)  win 51%
-      HOLDOUT   n   226  dates  148  mean   +236.10  SE  157.85  t  +1.50   z +0.407 (t +5.32)  win 50%
-      ALL       n   545  dates  348  mean   +324.01  SE   87.64  t  +3.70   z +0.389 (t +6.90)  win 51%
-      sign agreement: FIT +386 / HOLDOUT +236  -> SAME SIGN
+      HOLDOUT   n   230  dates  153  mean   +284.57  SE  157.65  t  +1.81   z +0.454 (t +5.75)  win 52%
+      ALL       n   549  dates  353  mean   +343.68  SE   87.64  t  +3.92   z +0.409 (t +7.22)  win 52%
+      sign agreement: FIT +386 / HOLDOUT +285  -> SAME SIGN
 
     went on to -7%
       FIT       n   195  dates  115  mean    +70.05  SE  152.48  t  +0.46   z +0.002 (t +0.02)  win 33%
-      HOLDOUT   n   162  dates  107  mean    -34.13  SE  136.78  t  -0.25   z -0.136 (t -1.22)  win 32%
-      ALL       n   357  dates  222  mean    +22.77  SE  103.59  t  +0.22   z -0.061 (t -0.86)  win 33%
-      sign agreement: FIT +70 / HOLDOUT -34  -> *** DISAGREE ***
+      HOLDOUT   n   165  dates  109  mean    -36.71  SE  134.42  t  -0.27   z -0.135 (t -1.23)  win 32%
+      ALL       n   360  dates  224  mean    +21.12  SE  102.76  t  +0.21   z -0.061 (t -0.87)  win 33%
+      sign agreement: FIT +70 / HOLDOUT -37  -> *** DISAGREE ***
 
 ==============================================================================
 DECISION, against the rule written down before the run
 ==============================================================================
-  H2 added trades positive in BOTH windows?  True   (FIT +386, OOS +236)
-  H1 paired cost of entering early:          $+243/trade (t +5.29)
-  net $/yr of moving 7% -> 5%:               +19,529
-     = 93 added trades/yr x $+324 (all-window)  minus  44 earlier entries/yr x $243
+  H2 added trades positive in BOTH windows?  True   (FIT +386, OOS +285)
+  H1 paired cost of entering early:          $+246/trade (t +5.38)
+  net $/yr of moving 7% -> 5%:               +21,311
+     = 94 added trades/yr x $+344 (all-window)  minus  44 earlier entries/yr x $246
   NOTE this nets DOLLARS PER YEAR at one contract each. It is a
        capacity figure: realising it needs every signal taken.
 
@@ -84,5 +97,5 @@ DECISION, against the rule written down before the run
   clearly positive AND no sign flip appeared above. A holdout-only
   result is noise here -- that has been wrong 5 times in this project.
 
-wrote depth_retest_trades.csv (2047 rows)
-wrote depth_retest_paired.csv (257 rows)
+wrote depth_retest_trades.csv (2064 rows)
+wrote depth_retest_paired.csv (259 rows)
