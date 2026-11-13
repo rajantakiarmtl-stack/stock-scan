@@ -1,0 +1,57 @@
+name: Research - late recovery
+
+# Manual only. Tests Rajan's own observation, raised twice and never measured:
+# "they all went up, just not while we were holding them." If losers
+# systematically recover after expiry, the problem is the HORIZON, not the
+# entry -- which points at a completely different fix from every filter tested
+# so far.
+#
+# Three pre-registered hypotheses in the script docstring, with my predicted
+# outcome recorded up front. The benchmark is the load-bearing part: in a rising
+# market "the stock recovered later" is true of almost everything, so the only
+# interesting number is losers recovering MORE than the same universe does
+# anyway over the same calendar window.
+#
+# Separate workflow for the usual reason: each research job pulls 6 years for
+# ~840 names and running two in one job downloads it twice.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install --quiet yfinance pandas numpy pyarrow curl_cffi
+
+      # tee so the report survives as a committed file rather than only in the
+      # Actions log. set -o pipefail so a script failure still fails the step
+      # instead of being swallowed by tee's exit code.
+      - name: Run the study
+        run: |
+          set -o pipefail
+          python late_recovery.py 2>&1 | tee late_recovery_report.txt
+
+      - name: Commit the report
+        if: always()           # a failed run's log is the diagnostic
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f late_recovery_report.txt || true
+          git add -f late_recovery_trades.csv || true
+          if git diff --staged --quiet; then
+            echo "nothing changed"
+          else
+            git commit -m "research: do losers recover after expiry"
+            git push
+          fi
