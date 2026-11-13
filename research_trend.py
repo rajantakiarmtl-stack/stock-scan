@@ -223,7 +223,11 @@ def main():
         "sessions below 50-day":        f_days_below,
         "50-day slope, 20 sessions":    f_sma50_slope,
         "200-day slope, 60 sessions":   f_sma200_slope,
-        "63-day return":                f_ret42,
+        # B6: this measures 42 sessions, not 63. Renamed 2026-11-12 after an
+        # external audit caught it. The feature was killed either way so no
+        # conclusion changes -- but a genuine 63-day return has NEVER been
+        # tested, despite the record saying it was.
+        "42-day return":                f_ret42,
         "sessions since 63-day high":   f_days_since_hi,
         "3 worst days / total fall":    f_concentration,
     }

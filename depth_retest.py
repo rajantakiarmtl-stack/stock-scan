@@ -460,6 +460,15 @@ def main():
         # paired estimate toward "no difference". Drop them and say how many.
         same = (pd.to_datetime(paired.date_sh) == pd.to_datetime(paired.date_dp))
         n_same = int(same.sum())
+        # Keep BOTH populations. They answer different questions, and reporting
+        # only the conditional one overstates the effect by ~28%:
+        #   paired_all = every episode reaching both thresholds. Same-day pairs
+        #                are the identical trade, so their difference is a true
+        #                zero and belongs in the average. BROADER estimate.
+        #   paired     = excludes same-day; conditional on waiting actually
+        #                meaning waiting.
+        # External audit 2026-11-12.
+        paired_all = paired.reset_index(drop=True)
         paired = paired[~same].reset_index(drop=True)
         print(f"    {len(paired)} usable paired episodes "
               f"(of {len(sh)} shallow, {len(dp)} deep; "
@@ -490,6 +499,28 @@ def main():
         print(f"\n    sign agreement: FIT {fs:+.0f} / HOLDOUT {hs:+.0f}  -> "
               f"{'SAME SIGN' if fs*hs > 0 else '*** DISAGREE - treat as noise ***'}")
 
+        print("\n    THE TWO ESTIMATES, because they answer different questions:")
+        for lbl, fr, note in (
+            ("all episodes reaching both", paired_all,
+             "same-day pairs in as true zeros -- BROADER estimate"),
+            ("excluding same-day pairs  ", paired,
+             "conditional on waiting actually meaning waiting")):
+            if len(fr) < 3:
+                continue
+            m, se, tt, k = cl_paired(fr.d_pnl, fr.date_sh)
+            mz, _, tz, _ = cl_paired(fr.d_z, fr.date_sh)
+            print(f"      {lbl}  n {len(fr):>4}  $ {m:>+8.0f} (t {tt:>+5.2f})"
+                  f"   z {mz:>+6.3f} (t {tz:>+5.2f})")
+            print(f"        {note}")
+        if len(paired_all) and len(paired) and paired.d_pnl.mean():
+            ma = paired_all.d_pnl.mean(); me = paired.d_pnl.mean()
+            print(f"      -> quoting only the conditional figure overstates the "
+                  f"effect by {100*(1 - ma/me):.0f}%")
+        print("\n    NOTE this measures the DECISION (enter now vs wait), not the")
+        print("    entry-price cost in isolation: the two legs have different exit")
+        print("    dates and so different market windows. Calling it an isolation")
+        print("    of entry price was wrong. External audit 2026-11-12.")
+
     # ---- H2: the declines that stop short ----------------------------
     print("\n" + L)
     print(f"H2  Do declines that STOP SHORT of -{DEEP:.0%} pay on their own?")
@@ -498,9 +529,37 @@ def main():
     print("    study never isolated them -- it folded them in with the earlier")
     print("    entries on declines that went on to reach -7%.\n")
     shr = trades[SHALLOW].copy()
-    key = set(zip(dp.index.get_level_values(0), dp.index.get_level_values(1)))
-    shr["reached_deep"] = [ (a, b) in key
+    # Deep-reach is taken from the PRICE PATH, not from the set of deep trades
+    # that survived pricing. Deriving it from `dp` let a pricing failure or a
+    # missing 21-session forward return relabel an episode as "stopped short",
+    # i.e. let pricing failures redefine the H2 population. The dominant leak
+    # was the sample edge: 85 of 902 shallow trades (9.4%) sit in the final 42
+    # dates, where a later deep entry has no forward data. Eligibility is NOT
+    # required here -- the question is whether the decline reached -7%, which is
+    # a fact about the price, not about tradeability. External audit 2026-11-12.
+    # NOTE the mask must mirror first_touch()'s SIGNAL condition --
+    # (depth <= -DEEP) & elig & sma50.notna() -- and drop only the PRICING step.
+    # A first attempt used raw `depth` alone, which counted episodes that dipped
+    # past -7% while the name was ineligible (below its 200-day, vol_rank too
+    # high), so the deep trigger could never have fired on them. On a synthetic
+    # panel that inflated deep-reach from 67 to 1,095 episodes, which is how the
+    # error was caught. Eligibility is part of the signal; pricing is not.
+    deep_mask = (depth <= -DEEP) & elig & sma50.notna()
+    deep_reach = set()
+    for c in close.columns:
+        dm = deep_mask[c].fillna(False).values
+        ep = episode[c].values
+        for i in np.where(dm)[0]:
+            e = ep[i]
+            if np.isfinite(e):
+                deep_reach.add((c, e))
+    shr["reached_deep"] = [ (a, b) in deep_reach
                             for a, b in zip(shr.ticker, shr.episode) ]
+    n_priced_key = len(set(zip(dp.index.get_level_values(0),
+                               dp.index.get_level_values(1))))
+    print(f"    deep-reach from the price path: {len(deep_reach)} episodes; "
+          f"from priced trades only: {n_priced_key}. The gap is what the old "
+          f"classification mislabelled.")
     for lbl, sub in (("stopped short", shr[~shr.reached_deep]),
                      ("went on to -7%", shr[shr.reached_deep])):
         print(f"    {lbl}")

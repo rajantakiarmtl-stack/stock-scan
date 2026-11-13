@@ -139,6 +139,14 @@ DTE_DRIFT_WARN = 10
 # removes rows is how three separate runs produced confident, wrong files.
 BE_SIGMA_WARN = 0.80       # breakeven beyond this needs an above-median move
 MIN_LEG_OI = 100           # per leg; thinner than this and the fill is a fight
+MIN_LEG_VOL = 10           # per leg, SAME-DAY contract volume. An UN-VALIDATED
+                           # guess and warning-only: MIN_LEG_OI is the primary
+                           # liquidity gate, and this catches a strike carrying
+                           # good standing OI that nobody actually traded today.
+                           # NOT the same thing as the underlying's average
+                           # option volume (NEU 2/day, NTRS 88, GPC 187, WST
+                           # 236) — that check has no data source here and
+                           # stays manual. See Execution in the spec.
 MAX_SPREAD_COST = 25.0     # round-trip bid/ask as a % of the debit
 SP500_CSV = ("https://raw.githubusercontent.com/datasets/"
              "s-and-p-500-companies/main/data/constituents.csv")
@@ -321,7 +329,8 @@ def price_the_trade(ticker, spot, sigma, hist):
                    stock can have a 30%-wide option spread, and that spread is
                    paid twice.
     """
-    d = {"opt_note": "", "expiry": "", "dte": np.nan, "k_long": np.nan,
+    d = {"opt_note": "", "debit_mid": np.nan, "debit_is_executable": False,
+         "expiry": "", "dte": np.nan, "k_long": np.nan,
          "k_short": np.nan, "width_built": np.nan, "debit": np.nan,
          "breakeven": np.nan, "be_pct": np.nan, "be_sigma": np.nan,
          "max_profit": np.nan, "rr": np.nan, "leg_vol": np.nan,
@@ -367,8 +376,19 @@ def price_the_trade(ticker, spot, sigma, hist):
         if not np.isfinite(ml) or not np.isfinite(ms):
             d["opt_note"] = "no usable prices on one or both legs"
             return d
-        debit = ml - ms
+        # What you would actually PAY to open: hit the long leg's ask, take the
+        # short leg's bid. The mid-to-mid debit understates it, which flatters
+        # breakeven, max_profit and rr. This trade is held to expiry, so entry
+        # execution is a real cost, not an optional warning. Keep the mid for
+        # comparison. Found by an external audit 2026-11-12.
+        debit_mid = ml - ms
+        _al = float(rl.get("ask") or 0)
+        _bs = float(rs.get("bid") or 0)
+        exec_ok = (_al > 0 and _bs > 0 and (_al - _bs) > 0)
+        debit = (_al - _bs) if exec_ok else debit_mid
         d["two_sided"] = bool(okl and oks)
+        d["debit_mid"] = round(debit_mid, 2)
+        d["debit_is_executable"] = bool(exec_ok)
         if debit <= 0:
             d["opt_note"] = f"non-positive debit ({debit:.2f}) — stale quotes"
             return d
@@ -382,9 +402,13 @@ def price_the_trade(ticker, spot, sigma, hist):
         d["leg_vol"] = float(min(rl.get("volume") or 0, rs.get("volume") or 0))
         d["leg_oi"] = float(min(rl.get("openInterest") or 0,
                                 rs.get("openInterest") or 0))
-        if np.isfinite(sl) and np.isfinite(ss) and ml > 0 and ms > 0:
-            # what the round trip costs, as a share of the debit put up
-            d["spread_cost_pct"] = round(100 * (sl + ss) / debit, 1)
+        if np.isfinite(sl) and np.isfinite(ss) and ml > 0 and ms > 0 and debit_mid > 0:
+            # Round-trip bid/ask as a share of the MID debit. Deliberately not
+            # against `debit`, which now already contains the entry half of the
+            # cross — dividing by it would count that half twice. (The spec's
+            # pending rename to cross_cost_pct is still outstanding; the name is
+            # kept for now so nothing reading the CSV breaks.)
+            d["spread_cost_pct"] = round(100 * (sl + ss) / debit_mid, 1)
 
         # ---- how often has THIS stock cleared THIS breakeven, historically? --
         # Overlapping windows, so n_indep (not the window count) is the honest
@@ -541,7 +565,15 @@ def main():
         print(f"note: {before - len(out)} name(s) lack a full metric set")
 
     out["last_bar"] = pd.to_datetime(out.last_bar).dt.date
-    out["sigma_21d"] = out.realized_vol / 100 * np.sqrt(21 / 365) * out.price
+    # rv60 is annualised over 252 TRADING days, so de-annualising to 21 days
+    # must also use 252. Using 365 made sigma_21d sqrt(252/365) = 83.1% of its
+    # correct value: every width came out 16.9% too narrow and the short leg sat
+    # at ~1.25 sigma instead of the validated 1.5. This fed `target = k1 + 1.5 *
+    # sigma` in price_the_trade, so it moved REAL strikes, not just the advisory
+    # suggested_width column. depth_retest.py and beta_decomp.py always used
+    # 252 — only this file was wrong, so the scanner was building a structure
+    # the backtest never validated. Found by an external audit 2026-11-12.
+    out["sigma_21d"] = out.realized_vol / 100 * np.sqrt(21 / 252) * out.price
     out["suggested_width"] = (1.5 * out.sigma_21d).round(1)
     # Eligibility uses the VALIDATED cross-sectional rank. See the
     # MAX_VOL_RANK comment: rank measured +0.885 sigma holdout (t 5.00) against
@@ -570,7 +602,19 @@ def main():
 
     out.to_csv(HERE / "scan_universe.csv", index=False)
 
-    cand = out[out.call_trigger | out.put_trigger].copy()
+    # The put rule is RETIRED — all 14 tested variants failed holdout (see the
+    # spec's PUT SIDE section). Leaving it in the candidate file produced whole
+    # scans where every row was a dead rule's output: 52 put rows against zero
+    # call rows on 2026-11-11, four scans running. That buries the real result
+    # and invites trading a rule that was measured and rejected. put_trigger is
+    # still computed and still written to scan_universe.csv, so nothing is
+    # silently dropped from the record — it just no longer reaches the
+    # executable candidate list.
+    n_put_retired = int(out.put_trigger.sum())
+    cand = out[out.call_trigger].copy()
+    if n_put_retired:
+        print(f"note: {n_put_retired} put triggers withheld (rule retired "
+              f"2026-10-12); they remain in scan_universe.csv")
     if len(cand):
         print(f"fetching earnings dates for {len(cand)} candidates...")
         dates = []
@@ -614,6 +658,13 @@ def main():
                 w.append(f"BE{r.be_sigma:.2f}sig")
             if np.isfinite(r.leg_oi) and r.leg_oi < MIN_LEG_OI:
                 w.append(f"OI{int(r.leg_oi)}")
+            # leg_vol was computed and never checked, so the liquidity gate that
+            # has killed more candidates here than any other ran by hand every
+            # time. Found by an external audit 2026-11-12.
+            if np.isfinite(r.leg_vol) and r.leg_vol < MIN_LEG_VOL:
+                w.append(f"VOL{int(r.leg_vol)}")
+            if np.isfinite(r.rr) and r.rr <= 0:
+                w.append("RR<=0")
             if np.isfinite(r.spread_cost_pct) and r.spread_cost_pct > MAX_SPREAD_COST:
                 w.append(f"SLIP{r.spread_cost_pct:.0f}%")
             warn.append(",".join(w) if w else "clear")

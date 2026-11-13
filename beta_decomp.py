@@ -352,12 +352,18 @@ def main():
     # ---- beta and idiosyncratic vol, 250d ending at t (past data only) ----
     print("computing rolling beta and idiosyncratic vol ...")
 
+    # B9: the beta window must END BEFORE the decline it decomposes. A 250-day
+    # window ending at t contains the 21-session decline ending at t, so the
+    # event being classified helped determine the beta that classifies it --
+    # worst exactly when the stock has just made an unusual move, which is every
+    # signal by construction. Shifting by LOOKBACK uses only data predating the
+    # decline. External audit 2026-11-12.
     def _beta(s, m):
         r = s.pct_change()
         mr = m.pct_change()
         cov = r.rolling(BETA_WIN, min_periods=200).cov(mr)
         var = mr.rolling(BETA_WIN, min_periods=200).var()
-        return cov / var
+        return (cov / var).shift(LOOKBACK)
 
     beta = per_sym_vs_market(close, spy, _beta)
 
@@ -367,7 +373,8 @@ def main():
         cov = r.rolling(BETA_WIN, min_periods=200).cov(mr)
         var = mr.rolling(BETA_WIN, min_periods=200).var()
         b = cov / var
-        return (r - b * mr).rolling(BETA_WIN, min_periods=200).std()
+        return (r - b * mr).rolling(BETA_WIN,
+                                    min_periods=200).std().shift(LOOKBACK)
 
     idio = per_sym_vs_market(close, spy, _idio)
 
@@ -627,20 +634,28 @@ def main():
         print(f"  same sign in both windows?        {same}"
               f"   (FIT {dzf:+.3f}, HOLDOUT {dzh:+.3f})")
         print(f"  |t| > 2.5 in the holdout?         {strong}  (t {tzh:+.2f})")
-        if dbl:
+        # B8: the rule requires survival in BOTH market states, so a bucket too
+        # thin to enter `dbl` must FAIL the check, not drop out of the
+        # denominator. "1 of 1 agree" passed a test written to require two.
+        # External audit 2026-11-12.
+        N_BUCKETS = 2
+        if len(dbl) < N_BUCKETS:
+            agree = []
+            print(f"  survives the double sort?         NO - only {len(dbl)} of "
+                  f"{N_BUCKETS} buckets had enough data. A bucket that cannot be "
+                  f"tested does not pass.")
+        else:
             agree = [ms for ms, (dz, _) in dbl.items() if dz * dzh > 0]
             print(f"  survives the double sort?         "
-                  f"{len(agree)} of {len(dbl)} market-state buckets agree in sign")
-            for ms, (dz, tz) in dbl.items():
-                print(f"      {ms:<16} z {dz:+.3f} (t {tz:+.2f})")
-        else:
-            print("  survives the double sort?         both buckets too thin")
+                  f"{len(agree)} of {N_BUCKETS} market-state buckets agree in sign")
+        for ms, (dz, tz) in dbl.items():
+            print(f"      {ms:<16} z {dz:+.3f} (t {tz:+.2f})")
         print(f"\n  direction: "
               f"{'idiosyncratic dips revert BETTER (H1)' if dzh > 0 else 'market-driven dips do as well or BETTER (H2)'}")
         if not (same and strong):
             print("\n  -> NOT A FINDING. Leave the filters alone. Beta stays a")
             print("     reported column, not a gate.")
-        elif dbl and len(agree) < len(dbl):
+        elif len(agree) < N_BUCKETS:
             print("\n  -> the single sort passed but the double sort did NOT hold")
             print("     in every market-state bucket. That is the confound, not")
             print("     a finding. Leave the filters alone.")
