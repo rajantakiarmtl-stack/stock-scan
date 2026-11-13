@@ -1,0 +1,87 @@
+curl_cffi session active
+universe: 843 names, pulling 6y
+
+  pass 1: 15/843 asked, 15/843 in  pass 1: 30/843 asked, 30/843 in  pass 1: 45/843 asked, 45/843 in  pass 1: 60/843 asked, 60/843 in  pass 1: 75/843 asked, 75/843 in  pass 1: 90/843 asked, 90/843 in  pass 1: 105/843 asked, 105/843 in  pass 1: 120/843 asked, 120/843 in  pass 1: 135/843 asked, 135/843 in  pass 1: 150/843 asked, 150/843 in  pass 1: 165/843 asked, 165/843 in  pass 1: 180/843 asked, 180/843 in  pass 1: 195/843 asked, 195/843 in  pass 1: 210/843 asked, 210/843 in  pass 1: 225/843 asked, 225/843 in  pass 1: 240/843 asked, 240/843 in  pass 1: 255/843 asked, 255/843 in  pass 1: 270/843 asked, 270/843 in  pass 1: 285/843 asked, 285/843 in  pass 1: 300/843 asked, 300/843 in  pass 1: 315/843 asked, 315/843 in  pass 1: 330/843 asked, 330/843 in  pass 1: 345/843 asked, 345/843 in  pass 1: 360/843 asked, 360/843 in  pass 1: 375/843 asked, 375/843 in  pass 1: 390/843 asked, 389/843 in  pass 1: 405/843 asked, 404/843 in  pass 1: 420/843 asked, 419/843 in  pass 1: 435/843 asked, 434/843 in  pass 1: 450/843 asked, 449/843 in  pass 1: 465/843 asked, 464/843 in  pass 1: 480/843 asked, 479/843 in  pass 1: 495/843 asked, 494/843 in  pass 1: 510/843 asked, 509/843 in  pass 1: 525/843 asked, 524/843 in  pass 1: 540/843 asked, 539/843 in  pass 1: 555/843 asked, 554/843 in  pass 1: 570/843 asked, 569/843 in  pass 1: 585/843 asked, 584/843 in  pass 1: 600/843 asked, 599/843 in  pass 1: 615/843 asked, 613/843 in  pass 1: 630/843 asked, 628/843 in  pass 1: 645/843 asked, 642/843 in  pass 1: 660/843 asked, 657/843 in  pass 1: 675/843 asked, 672/843 in  pass 1: 690/843 asked, 686/843 in  pass 1: 705/843 asked, 701/843 in  pass 1: 720/843 asked, 716/843 in  pass 1: 735/843 asked, 731/843 in  pass 1: 750/843 asked, 746/843 in  pass 1: 765/843 asked, 761/843 in  pass 1: 780/843 asked, 776/843 in  pass 1: 795/843 asked, 791/843 in  pass 1: 810/843 asked, 806/843 in  pass 1: 825/843 asked, 821/843 in  pass 1: 840/843 asked, 836/843 in  pass 1: 843/843 asked, 839/843 in
+  4 missing - waiting 20s before pass 2
+  pass 2: 4/4 asked, 839/843 in
+  4 missing - waiting 40s before pass 3
+  pass 3: 4/4 asked, 839/843 in
+  4 missing - waiting 60s before pass 4
+  pass 4: 4/4 asked, 839/843 in
+
+got 839 tickers, 1506 bars, 2020-11-13 .. 2026-11-12
+
+trades with 63 sessions of post-expiry data: 326
+  FIT 194  HOLDOUT 132  dates 215  tickers 232
+  losers 174 (53%)   total losses 134 (41%)
+
+  NOTE the 63-session data requirement drops the most
+  recent trades, so this sample is older than the full study's.
+
+==============================================================================
+H1  DO LOSERS RECOVER AFTER EXPIRY?
+==============================================================================
+  Three columns, and only the third one means anything:
+    raw      = the stock's move after expiry
+    vs bench = minus the same-date mean of all eligible names
+  A rising market makes 'raw' positive for everything. Ignore it.
+
+  -- 10 sessions after expiry
+     losers  n  174 dates  133   raw  +0.60% (t +1.20)   vs bench  +0.31% (t +0.78)
+     winners n  152 dates  105   raw  +1.20% (t +2.42)   vs bench  +0.86% (t +1.88)
+     H2 losers minus winners, vs bench: -0.55% (t -0.91)
+       FIT      losers vs bench +0.21% (t +0.41) n 109
+       HOLDOUT  losers vs bench +0.47% (t +0.78) n 65
+
+  -- 21 sessions after expiry
+     losers  n  174 dates  133   raw  +1.79% (t +2.55)   vs bench  +0.53% (t +0.90)
+     winners n  152 dates  105   raw  +1.01% (t +1.72)   vs bench  +0.96% (t +1.83)
+     H2 losers minus winners, vs bench: -0.43% (t -0.56)
+       FIT      losers vs bench +0.36% (t +0.52) n 109
+       HOLDOUT  losers vs bench +0.81% (t +0.76) n 65
+
+  -- 42 sessions after expiry
+     losers  n  174 dates  133   raw  +3.50% (t +3.72)   vs bench  +1.34% (t +1.47)
+     winners n  152 dates  105   raw  +2.82% (t +3.01)   vs bench  +1.92% (t +2.07)
+     H2 losers minus winners, vs bench: -0.57% (t -0.45)
+       FIT      losers vs bench +0.79% (t +0.68) n 109
+       HOLDOUT  losers vs bench +2.28% (t +1.57) n 65
+
+  -- 63 sessions after expiry
+     losers  n  174 dates  133   raw  +4.18% (t +3.18)   vs bench  +2.83% (t +2.49)
+     winners n  152 dates  105   raw  +1.44% (t +1.08)   vs bench  +0.63% (t +0.57)
+     H2 losers minus winners, vs bench: +2.20% (t +1.41)
+       FIT      losers vs bench +1.00% (t +0.75) n 109
+       HOLDOUT  losers vs bench +5.90% (t +3.11) n 65
+
+==============================================================================
+H3  WOULD A LONGER SPREAD HAVE RESCUED THEM?
+==============================================================================
+  The only version with a trading implication. Same entry, same
+  signal, but the spread is built for a longer horizon -- so it is
+  correctly WIDER and MORE EXPENSIVE. If the recovery arrives after
+  the option expired, or costs more in premium than it returns,
+  H1 can be true while this is false.
+
+  21-session (current spec): $+251/trade (t +2.15), win 47%, mean debit $641
+   31-session: $   +247/trade (t +1.94)  win  49%  debit $  774  FIT $  +221 / OOS $  +285  SAME SIGN
+       of the 174 trades that LOST at 21 sessions, 20% would be green at 31; mean $-559
+   42-session: $   +243/trade (t +1.64)  win  48%  debit $  898  FIT $  +249 / OOS $  +235  SAME SIGN
+       of the 174 trades that LOST at 21 sessions, 25% would be green at 42; mean $-560
+   63-session: $   +521/trade (t +2.64)  win  56%  debit $ 1093  FIT $  +418 / OOS $  +673  SAME SIGN
+       of the 174 trades that LOST at 21 sessions, 36% would be green at 63; mean $-423
+   84-session: $   +355/trade (t +1.78)  win  49%  debit $ 1255  FIT $   +70 / OOS $  +774  SAME SIGN
+       of the 174 trades that LOST at 21 sessions, 37% would be green at 84; mean $-356
+
+==============================================================================
+VERDICT, against the rule written down before the run
+==============================================================================
+  H1 losers beat the benchmark, both windows, t>2?   True
+  H3 a longer horizon beats 21 sessions, same sign?  True
+
+  -> Both pass. A longer horizon deserves a pre-registered forward
+     test before the spec changes. Do NOT adopt off this run alone.
+
+  Recorded prediction: H1 partly true, H2 false, H3 false at 42.
+
+wrote late_recovery_trades.csv (326 rows)
