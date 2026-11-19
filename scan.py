@@ -111,7 +111,7 @@ MIN_PRICE = 50
 # matters in the next regime, which is the point.
 MAX_VOL_RANK = 0.33        # cross-sectional percentile of 60-day realized vol
 MIN_RVOL = 0.10            # data-quality floor: below this the series is broken
-CALL_TRIGGER = -0.07       # 7% below the 50-day mean
+CALL_TRIGGER = -0.05       # 7% below the 50-day mean
 PUT_TRIGGER = 0.15         # 15% above the 200-day mean
 EXTRA_TICKERS = []
 
